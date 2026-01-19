@@ -6,9 +6,22 @@ import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:frontend/config/environment.dart';
 
+// Minimal AuthHelper for generated app templates
+class AuthHelper {
+  static Future<bool> isAdmin() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final role = prefs.getString('user_role') ?? '';
+      return role.toLowerCase() == 'admin';
+    } catch (_) {
+      return false;
+    }
+  }
+}
+
 // Define PriceUtils class
 class PriceUtils {
-  static String formatPrice(double price, {String currency = '\$'}) {
+  static String formatPrice(double price, {String currency = '$'}) {
     return '$currency\${price.toStringAsFixed(2)}';
   }
   
@@ -23,7 +36,7 @@ class PriceUtils {
   // Detect currency symbol from price string
   static String detectCurrency(String priceString) {
     if (priceString.contains('₹')) return '₹';
-    if (priceString.contains('\$')) return '\$';
+    if (priceString.contains('$')) return '$';
     if (priceString.contains('€')) return '€';
     if (priceString.contains('£')) return '£';
     if (priceString.contains('¥')) return '¥';
@@ -31,9 +44,26 @@ class PriceUtils {
     if (priceString.contains('₽')) return '₽';
     if (priceString.contains('₦')) return '₦';
     if (priceString.contains('₨')) return '₨';
-    return '\$'; // Default to dollar
+    return '$'; // Default to dollar
   }
-  
+
+  static String currencySymbolFromCode(String code) {
+    switch (code.toUpperCase()) {
+      case 'INR':
+        return '₹';
+      case 'USD':
+        return '$';
+      case 'EUR':
+        return '€';
+      case 'GBP':
+        return '£';
+      case 'JPY':
+        return '¥';
+      default:
+        return '$';
+    }
+  }
+
   static double calculateDiscountPrice(double originalPrice, double discountPercentage) {
     return originalPrice * (1 - discountPercentage / 100);
   }
@@ -59,6 +89,7 @@ class CartItem {
   final double discountPrice;
   int quantity;
   final String? image;
+  final String currencySymbol;
   
   CartItem({
     required this.id,
@@ -67,6 +98,7 @@ class CartItem {
     this.discountPrice = 0.0,
     this.quantity = 1,
     this.image,
+    this.currencySymbol = '$',
   });
   
   double get effectivePrice => discountPrice > 0 ? discountPrice : price;
@@ -80,6 +112,15 @@ class CartManager extends ChangeNotifier {
   double _discountPercentage = 0.0; // Default discount percentage
   
   List<CartItem> get items => List.unmodifiable(_items);
+
+  int get totalQuantity {
+    return _items.fold(0, (sum, item) => sum + item.quantity);
+  }
+
+  String get displayCurrencySymbol {
+    if (_items.isEmpty) return '$';
+    return _items.first.currencySymbol;
+  }
   
   // Update GST percentage
   void updateGSTPercentage(double percentage) {
@@ -321,102 +362,6 @@ class DynamicAppSync {
   }
 }
 
-// Function to load dynamic product data from backend
-Future<void> loadDynamicProductData() async {
-  try {
-    setState(() {
-      isLoading = true;
-      errorMessage = null;
-    });
-    
-    // Get dynamic admin ID
-    final adminId = await AdminManager.getCurrentAdminId();
-    print('🔍 Loading dynamic data with admin ID: ${adminId}');
-    
-    final response = await http.get(
-      Uri.parse('${Environment.apiBase}/api/get-form?adminId=${adminId}&appId=${ApiConfig.appId}'),
-      headers: {'Content-Type': 'application/json'},
-    );
-    
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      if (data['success'] == true && data['pages'] != null) {
-        final pages = data['pages'] as List;
-        final newProducts = <Map<String, dynamic>>[];
-        
-        // Extract products from all widgets
-        for (var page in pages) {
-          if (page['widgets'] != null) {
-            for (var widget in page['widgets']) {
-              if (widget['properties'] != null && widget['properties']['productCards'] != null) {
-                final products = List<Map<String, dynamic>>.from(widget['properties']['productCards']);
-                newProducts.addAll(products);
-              }
-            }
-          }
-        }
-        
-        setState(() {
-          productCards = newProducts;
-          isLoading = false;
-        });
-        
-        print('✅ Loaded ${productCards.length} dynamic products');
-      } else {
-        throw Exception('Invalid response format');
-      }
-    } else {
-      throw Exception('HTTP ${response.statusCode}');
-    }
-  } catch (e) {
-    print('❌ Error loading dynamic data: $e');
-    setState(() {
-      errorMessage = e.toString();
-      isLoading = false;
-    });
-  }
-}
-
-// Real-time updates with WebSocket
-final DynamicAppSync _appSync = DynamicAppSync();
-StreamSubscription? _updateSubscription;
-
-void startRealTimeUpdates() async {
-  final adminId = await AdminManager.getCurrentAdminId();
-  if (adminId != null) {
-    _appSync.connect(adminId: adminId, apiBase: Environment.apiBase);
-    
-    _updateSubscription = _appSync.updates.listen((update) {
-      if (!mounted) return;
-      
-      final type = update['type']?.toString().toLowerCase();
-      print('📱 Received real-time update: $type');
-      
-      switch (type) {
-        case 'home-page':
-        case 'dynamic-update':
-          loadDynamicProductData();
-          break;
-      }
-    });
-  }
-}
-
-@override
-void initState() {
-  super.initState();
-  loadDynamicProductData();
-  startRealTimeUpdates();
-}
-
-@override
-void dispose() {
-  _updateSubscription?.cancel();
-  _appSync.dispose();
-  super.dispose();
-}
-
-
 void main() => runApp(const MyApp());
 
 class MyApp extends StatelessWidget {
@@ -526,7 +471,7 @@ class AdminManager {
   static Future<String?> _autoDetectAdminId() async {
     try {
       final response = await http.get(
-        Uri.parse('http://10.27.148.1:5000/api/admin/app-info'),
+        Uri.parse('http://10.239.130.5:5000/api/admin/app-info'),
         headers: {'Content-Type': 'application/json'},
       );
       
@@ -701,7 +646,7 @@ class _SignInPageState extends State<SignInPage> {
     try {
       final adminId = await AdminManager.getCurrentAdminId();
       final response = await http.post(
-        Uri.parse('http://10.27.148.1:5000/api/login'),
+        Uri.parse('http://10.239.130.5:5000/api/login'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'email': _emailController.text.trim(),
@@ -1301,17 +1246,15 @@ class _HomePageState extends State<HomePage> {
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           child: Column(
-            children: (
-              _homeWidgets.isNotEmpty
-                  ? _homeWidgets.map((w) => _buildHomeWidgetFromConfig(w)).toList()
-                  : <Widget>[
-                      _buildHomeWidgetFromConfig({'name': 'HeaderWidget', 'properties': {}}),
-                      _buildHomeWidgetFromConfig({'name': 'HeroBannerWidget', 'properties': {}}),
-                      _buildHomeWidgetFromConfig({'name': 'ProductSearchBarWidget', 'properties': {}}),
-                      _buildHomeWidgetFromConfig({'name': 'Catalog View Card', 'properties': {}}),
-                      _buildHomeWidgetFromConfig({'name': 'StoreInfoWidget', 'properties': {}}),
-                    ]
-            ),
+            children: _homeWidgets.isNotEmpty
+                ? _homeWidgets.map((w) => _buildHomeWidgetFromConfig(w)).toList()
+                : <Widget>[
+                    _buildHomeWidgetFromConfig({'name': 'HeaderWidget', 'properties': {}}),
+                    _buildHomeWidgetFromConfig({'name': 'HeroBannerWidget', 'properties': {}}),
+                    _buildHomeWidgetFromConfig({'name': 'ProductSearchBarWidget', 'properties': {}}),
+                    _buildHomeWidgetFromConfig({'name': 'Catalog View Card', 'properties': {}}),
+                    _buildHomeWidgetFromConfig({'name': 'StoreInfoWidget', 'properties': {}}),
+                  ],
           ),
         ),
       ),
