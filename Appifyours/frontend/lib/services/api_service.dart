@@ -1227,14 +1227,159 @@ class ApiService {
     }
   }
 
+  // ===== CART METHODS =====
+
+  Future<Map<String, dynamic>> getCart({
+    String? userId,
+    String? adminId,
+    String? appName,
+  }) async {
+    try {
+      final resolvedUserId = (userId ?? await _getUserId() ?? '').toString();
+      final uri = Uri.parse('$baseUrl/admin/cart').replace(
+        queryParameters: {
+          'userId': resolvedUserId.isNotEmpty ? resolvedUserId : 'demo_user',
+          if (adminId != null && adminId.isNotEmpty) 'adminId': adminId,
+          if (appName != null && appName.isNotEmpty) 'appName': appName,
+        },
+      );
+
+      final response = await http.get(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return {
+          'success': true,
+          'data': {
+            'cartCount': data['cartCount'] ?? 0,
+            'cartItems': data['cartItems'] ?? [],
+          },
+          'statusCode': response.statusCode,
+        };
+      }
+
+      return {
+        'success': false,
+        'data': {'cartCount': 0, 'cartItems': []},
+        'statusCode': response.statusCode,
+      };
+    } catch (e) {
+      print('Error getting cart: $e');
+      return {
+        'success': false,
+        'data': {'cartCount': 0, 'cartItems': []},
+        'statusCode': 500,
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> addToCart({
+    required String userId,
+    required String productId,
+    required String productName,
+    required double productPrice,
+    String? adminId,
+    String? appName,
+    String? userEmail,
+    String? firstName,
+    String? lastName,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/admin/cart/add'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'userId': userId,
+          if (adminId != null && adminId.isNotEmpty) 'adminId': adminId,
+          if (appName != null && appName.isNotEmpty) 'appName': appName,
+          if (userEmail != null && userEmail.isNotEmpty) 'userEmail': userEmail,
+          if (firstName != null && firstName.isNotEmpty) 'firstName': firstName,
+          if (lastName != null && lastName.isNotEmpty) 'lastName': lastName,
+          'productId': productId,
+          'productName': productName,
+          'productPrice': productPrice,
+        }),
+      );
+
+      final data = json.decode(response.body);
+      return {
+        'success': response.statusCode == 200 && data['success'] == true,
+        'data': data,
+        'statusCode': response.statusCode,
+      };
+    } catch (e) {
+      print('Error adding to cart: $e');
+      return {
+        'success': false,
+        'data': null,
+        'statusCode': 500,
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> removeFromCart({
+    required String userId,
+    required String productId,
+    String? adminId,
+    String? appName,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/admin/cart/remove'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'userId': userId,
+          if (adminId != null && adminId.isNotEmpty) 'adminId': adminId,
+          if (appName != null && appName.isNotEmpty) 'appName': appName,
+          'productId': productId,
+        }),
+      );
+
+      final data = json.decode(response.body);
+      return {
+        'success': response.statusCode == 200 && data['success'] == true,
+        'data': data,
+        'statusCode': response.statusCode,
+      };
+    } catch (e) {
+      print('Error removing from cart: $e');
+      return {
+        'success': false,
+        'data': null,
+        'statusCode': 500,
+      };
+    }
+  }
+
   // ===== WISHLIST METHODS =====
 
   // Get wishlist count and items
-  Future<Map<String, dynamic>> getWishlist({String? userId}) async {
+  Future<Map<String, dynamic>> getWishlist({
+    String? userId,
+    String? adminId,
+    String? appName,
+  }) async {
     try {
       print('Getting wishlist - using baseUrl: $baseUrl');
+      final uri = Uri.parse('$baseUrl/admin/wishlist').replace(
+        queryParameters: {
+          'userId': (userId ?? 'demo_user').toString(),
+          if (adminId != null && adminId.isNotEmpty) 'adminId': adminId,
+          if (appName != null && appName.isNotEmpty) 'appName': appName,
+        },
+      );
+
       final response = await http.get(
-        Uri.parse('$baseUrl/api/wishlist?userId=${userId ?? ''}'),
+        uri,
         headers: {
           'Content-Type': 'application/json',
         },
@@ -1254,7 +1399,7 @@ class ApiService {
         print('Wishlist request failed with status: ${response.statusCode}');
         return {
           'success': false,
-          'data': {'wishlistCount': 0, 'wishlistItems': []},
+          'data': {'wishlistCount': 0, 'wishlistItems': []}, // Fallback
           'statusCode': response.statusCode,
         };
       }
@@ -1262,7 +1407,7 @@ class ApiService {
       print('Error getting wishlist: $e');
       return {
         'success': false,
-        'data': {'wishlistCount': 0, 'wishlistItems': []},
+        'data': {'wishlistCount': 0, 'wishlistItems': []}, // Fallback
         'statusCode': 500,
       };
     }
@@ -1271,26 +1416,32 @@ class ApiService {
   // Add item to wishlist
   Future<Map<String, dynamic>> addToWishlist({
     required String userId,
-    String? adminId,
     required String productId,
-    String? productName,
-    double? productPrice,
-    String? productImage,
+    required String productName,
+    required double productPrice,
+    String? adminId,
+    String? appName,
+    String? userEmail,
+    String? firstName,
+    String? lastName,
   }) async {
     try {
       print('Adding to wishlist - using baseUrl: $baseUrl');
       final response = await http.post(
-        Uri.parse('$baseUrl/api/wishlist/add'),
+        Uri.parse('$baseUrl/admin/wishlist/add'),
         headers: {
           'Content-Type': 'application/json',
         },
         body: json.encode({
           'userId': userId,
           if (adminId != null && adminId.isNotEmpty) 'adminId': adminId,
+          if (appName != null && appName.isNotEmpty) 'appName': appName,
+          if (userEmail != null && userEmail.isNotEmpty) 'userEmail': userEmail,
+          if (firstName != null && firstName.isNotEmpty) 'firstName': firstName,
+          if (lastName != null && lastName.isNotEmpty) 'lastName': lastName,
           'productId': productId,
-          'productName': productName ?? 'Product $productId',
-          'productPrice': productPrice ?? 0.0,
-          if (productImage != null && productImage.isNotEmpty) 'productImage': productImage,
+          'productName': productName,
+          'productPrice': productPrice,
         }),
       );
 
@@ -1326,16 +1477,20 @@ class ApiService {
   Future<Map<String, dynamic>> removeFromWishlist({
     required String userId,
     required String productId,
+    String? adminId,
+    String? appName,
   }) async {
     try {
       print('Removing from wishlist - using baseUrl: $baseUrl');
       final response = await http.post(
-        Uri.parse('$baseUrl/api/wishlist/remove'),
+        Uri.parse('$baseUrl/admin/wishlist/remove'),
         headers: {
           'Content-Type': 'application/json',
         },
         body: json.encode({
           'userId': userId,
+          if (adminId != null && adminId.isNotEmpty) 'adminId': adminId,
+          if (appName != null && appName.isNotEmpty) 'appName': appName,
           'productId': productId,
         }),
       );
@@ -1369,204 +1524,6 @@ class ApiService {
   }
 
   // ===== END WISHLIST METHODS =====
-
-  // ===== CART METHODS =====
-
-  Future<Map<String, dynamic>> getCart({required String userId}) async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/api/cart?userId=$userId'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return {
-          'success': true,
-          'data': data,
-          'statusCode': response.statusCode,
-        };
-      }
-
-      return {
-        'success': false,
-        'data': {'cartCount': 0, 'cartItems': []},
-        'statusCode': response.statusCode,
-      };
-    } catch (e) {
-      return {
-        'success': false,
-        'data': {'cartCount': 0, 'cartItems': []},
-        'statusCode': 500,
-      };
-    }
-  }
-
-  Future<Map<String, dynamic>> addToCart({
-    required String userId,
-    String? adminId,
-    required String productId,
-    required String productName,
-    required double price,
-    int quantity = 1,
-    String? productImage,
-  }) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/api/cart/add'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: json.encode({
-          'userId': userId,
-          if (adminId != null && adminId.isNotEmpty) 'adminId': adminId,
-          'productId': productId,
-          'productName': productName,
-          'price': price,
-          'quantity': quantity,
-          if (productImage != null && productImage.isNotEmpty) 'productImage': productImage,
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return {
-          'success': true,
-          'data': data,
-          'statusCode': response.statusCode,
-        };
-      }
-
-      return {
-        'success': false,
-        'data': {'cartCount': 0, 'cartItems': []},
-        'statusCode': response.statusCode,
-      };
-    } catch (e) {
-      return {
-        'success': false,
-        'data': {'cartCount': 0, 'cartItems': []},
-        'statusCode': 500,
-      };
-    }
-  }
-
-  Future<Map<String, dynamic>> updateCartQuantity({
-    required String userId,
-    required String productId,
-    required int quantity,
-  }) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/api/cart/update-qty'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: json.encode({
-          'userId': userId,
-          'productId': productId,
-          'quantity': quantity,
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return {
-          'success': true,
-          'data': data,
-          'statusCode': response.statusCode,
-        };
-      }
-
-      return {
-        'success': false,
-        'data': {'cartCount': 0, 'cartItems': []},
-        'statusCode': response.statusCode,
-      };
-    } catch (e) {
-      return {
-        'success': false,
-        'data': {'cartCount': 0, 'cartItems': []},
-        'statusCode': 500,
-      };
-    }
-  }
-
-  Future<Map<String, dynamic>> removeFromCart({
-    required String userId,
-    required String productId,
-  }) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/api/cart/remove'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: json.encode({
-          'userId': userId,
-          'productId': productId,
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return {
-          'success': true,
-          'data': data,
-          'statusCode': response.statusCode,
-        };
-      }
-
-      return {
-        'success': false,
-        'data': {'cartCount': 0, 'cartItems': []},
-        'statusCode': response.statusCode,
-      };
-    } catch (e) {
-      return {
-        'success': false,
-        'data': {'cartCount': 0, 'cartItems': []},
-        'statusCode': 500,
-      };
-    }
-  }
-
-  Future<Map<String, dynamic>> clearCart({required String userId}) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/api/cart/clear'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: json.encode({'userId': userId}),
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return {
-          'success': true,
-          'data': data,
-          'statusCode': response.statusCode,
-        };
-      }
-
-      return {
-        'success': false,
-        'data': {'cartCount': 0, 'cartItems': []},
-        'statusCode': response.statusCode,
-      };
-    } catch (e) {
-      return {
-        'success': false,
-        'data': {'cartCount': 0, 'cartItems': []},
-        'statusCode': 500,
-      };
-    }
-  }
-
-  // ===== END CART METHODS =====
 
   // Dynamic signup method for new system
   Future<Map<String, dynamic>> dynamicSignup({
