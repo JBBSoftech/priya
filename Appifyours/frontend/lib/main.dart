@@ -213,78 +213,23 @@ class WishlistManager extends ChangeNotifier {
   }
 }
 
-  // Dynamic Configuration from Form
-  String gstNumber = '$gstNumber';
-  String selectedCategory = '$selectedCategory';
-  Map<String, dynamic> storeInfo = {
-    'storeName': '${storeInfo['storeName'] ?? 'My Store'}',
-    'address': '${storeInfo['address'] ?? '123 Main St'}',
-    'email': '${storeInfo['email'] ?? 'support@example.com'}',
-    'phone': '${storeInfo['phone'] ?? '(123) 456-7890'}',
-  };
+// Dynamic Configuration from Form
+final String gstNumber = '$gstNumber';
+final String selectedCategory = '$selectedCategory';
+final Map<String, dynamic> storeInfo = {
+  'storeName': '${storeInfo['storeName'] ?? 'My Store'}',
+  'address': '${storeInfo['address'] ?? '123 Main St'}',
+  'email': '${storeInfo['email'] ?? 'support@example.com'}',
+  'phone': '${storeInfo['phone'] ?? '(123) 456-7890'}',
+};
 
-  // Subscription and delivery settings
-  String _activePlanName = 'Basic';
-  bool _showDeliveryOverlay = false;
-  bool _showChatbotOverlay = false;
-  bool _showChatbotTopBanner = true;
-  final List<Map<String, String>> _chatbotMessages = <Map<String, String>>[
-    {'from': 'bot', 'text': 'Hi! How can I help you today?'},
-  ];
-  final TextEditingController _chatbotInputController = TextEditingController();
+// Dynamic Product Data - Will be loaded from backend
+List<Map<String, dynamic>> productCards = [];
+bool isLoading = true;
+String? errorMessage;
 
-  // Icon colors (configurable based on subscription)
-  Color _deliveryIconColor = const Color(0xFF0070BA);
-  Color _chatbotIconColor = const Color(0xFF0070BA);
-
-  // Subscription methods
-  bool _shouldShowDeliveryIcon() {
-    return _activePlanName.toLowerCase().contains('standard') || 
-           _activePlanName.toLowerCase().contains('premium');
-  }
-
-  bool _shouldShowChatbotIcon() {
-    return _activePlanName.toLowerCase().contains('premium');
-  }
-
-  bool _shouldShowChatbotBanner() {
-    return _shouldShowChatbotIcon() && _showChatbotTopBanner;
-  }
-
-  Future<void> _loadUserSubscription() async {
-    try {
-      // Try to get actual subscription from API
-      final token = await ApiService.getUserToken();
-      if (token != null && token.isNotEmpty) {
-        final subscription = await ApiService.getCurrentSubscription(token);
-        if (subscription != null) {
-          final planName = subscription['planName'] ?? subscription['plan_name'] ?? 'Basic';
-          setState(() {
-            _activePlanName = planName.toString();
-          });
-          return;
-        }
-      }
-      
-      // Fallback to Basic if no subscription found
-      setState(() {
-        _activePlanName = 'Basic';
-      });
-    } catch (e) {
-      // Fallback to Basic on error
-      setState(() {
-        _activePlanName = 'Basic';
-      });
-    }
-  }
-
-  // Dynamic Product Data - Will be loaded from backend
-  List<Map<String, dynamic>> productCards = [];
-  bool isLoading = true;
-  String? errorMessage;
-
-  // Quantity tracking for products
-  Map<String, int> _productQuantities = {};
+// Quantity tracking for products
+Map<String, int> _productQuantities = {};
 
 // WebSocket Real-time Sync Service
 class DynamicAppSync {
@@ -462,14 +407,12 @@ void initState() {
   super.initState();
   loadDynamicProductData();
   startRealTimeUpdates();
-  _loadUserSubscription();
 }
 
 @override
 void dispose() {
   _updateSubscription?.cancel();
   _appSync.dispose();
-  _chatbotInputController.dispose();
   super.dispose();
 }
 
@@ -583,7 +526,7 @@ class AdminManager {
   static Future<String?> _autoDetectAdminId() async {
     try {
       final response = await http.get(
-        Uri.parse('http://10.239.130.5:5000/api/admin/app-info'),
+        Uri.parse('http://10.127.224.5:5000/api/admin/app-info'),
         headers: {'Content-Type': 'application/json'},
       );
       
@@ -758,7 +701,7 @@ class _SignInPageState extends State<SignInPage> {
     try {
       final adminId = await AdminManager.getCurrentAdminId();
       final response = await http.post(
-        Uri.parse('http://10.239.130.5:5000/api/login'),
+        Uri.parse('http://10.127.224.5:5000/api/login'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'email': _emailController.text.trim(),
@@ -1325,87 +1268,15 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    body: Stack(
+    body: IndexedStack(
+      index: _currentPageIndex,
       children: [
-        IndexedStack(
-          index: _currentPageIndex,
-          children: [
-            _buildHomePage(),
-            _buildCartPage(),
-            _buildWishlistPage(),
-            _buildProfilePage(),
-          ],
-        ),
-        _buildDeliveryOverlay(),
-        _buildChatbotOverlay(),
-        // Chatbot top banner - shown for Premium plan only
-        if (_shouldShowChatbotBanner())
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: _chatbotIconColor,
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(16),
-                  bottomRight: Radius.circular(16),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.chat_bubble_outline, color: Colors.white, size: 16),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text(
-                      'Chatbot Support Available',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => setState(() => _showChatbotTopBanner = false),
-                    child: const Icon(
-                      Icons.close,
-                      color: Colors.white,
-                      size: 16,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+        _buildHomePage(),
+        _buildCartPage(),
+        _buildWishlistPage(),
+        _buildProfilePage(),
       ],
     ),
-    floatingActionButton: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Chatbot floating action button
-        if (_shouldShowChatbotIcon())
-          FloatingActionButton(
-            heroTag: "chatbot",
-            onPressed: () => setState(() => _showChatbotOverlay = true),
-            backgroundColor: _chatbotIconColor,
-            mini: true,
-            child: const Icon(Icons.chat_bubble_outline, color: Colors.white),
-          ),
-        if (_shouldShowChatbotIcon())
-          const SizedBox(height: 10),
-        // Delivery tracking floating action button
-        if (_shouldShowDeliveryIcon())
-          FloatingActionButton(
-            heroTag: "delivery",
-            onPressed: () => setState(() => _showDeliveryOverlay = true),
-            backgroundColor: _deliveryIconColor,
-            child: const Icon(Icons.delivery_dining, color: Colors.white),
-          ),
-      ],
-    ),
-    floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     bottomNavigationBar: _buildBottomNavigationBar(),
   );
 
@@ -2999,319 +2870,6 @@ class _HomePageState extends State<HomePage> {
         ),
       ],
     );
-  }
-
-  // Delivery overlay method
-  Widget _buildDeliveryOverlay() {
-    if (!_showDeliveryOverlay) return const SizedBox.shrink();
-
-    return Positioned.fill(
-      child: Material(
-        color: Colors.black54,
-        child: SafeArea(
-          child: Container(
-            margin: const EdgeInsets.all(20),
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    IconButton(
-                      onPressed: () => setState(() => _showDeliveryOverlay = false),
-                      icon: const Icon(Icons.arrow_back),
-                    ),
-                    const Expanded(
-                      child: Text(
-                        'Delivery Tracking',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                Expanded(
-                  child: Column(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: _deliveryIconColor,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.check_circle, color: Colors.white),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Free shipping on your order!',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  width: 40,
-                                  height: 40,
-                                  decoration: BoxDecoration(
-                                    color: _deliveryIconColor,
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: const Icon(
-                                    Icons.delivery_dining,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                const Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Delivery Partner',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                        ),
-                                      ),
-                                      Text(
-                                        'On the way',
-                                        style: TextStyle(
-                                          color: Colors.grey,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                IconButton(
-                                  onPressed: () {},
-                                  icon: const Icon(Icons.chat),
-                                ),
-                                IconButton(
-                                  onPressed: () {},
-                                  icon: const Icon(Icons.call),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            const Divider(),
-                            const SizedBox(height: 16),
-                            const Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                'Order Details',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            const Row(
-                              children: [
-                                Expanded(child: Text('Premium Product')),
-                                Text('1x'),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            const Row(
-                              children: [
-                                Expanded(child: Text('Additional Item')),
-                                Text('2x'),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // Chatbot overlay method
-  Widget _buildChatbotOverlay() {
-    if (!_showChatbotOverlay) return const SizedBox.shrink();
-
-    return Positioned.fill(
-      child: GestureDetector(
-        onTap: () => setState(() => _showChatbotOverlay = false),
-        child: Container(
-          color: Colors.black54,
-          child: SafeArea(
-            child: Center(
-              child: GestureDetector(
-                onTap: () {}, // Prevent tap through
-                child: Container(
-                  margin: const EdgeInsets.all(20),
-                  height: 400,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Column(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: const BoxDecoration(
-                          border: Border(bottom: BorderSide(color: Colors.grey)),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 30,
-                              height: 30,
-                              decoration: BoxDecoration(
-                                color: _chatbotIconColor,
-                                borderRadius: BorderRadius.circular(15),
-                              ),
-                              child: const Icon(
-                                Icons.chat_bubble_outline,
-                                color: Colors.white,
-                                size: 16,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            const Expanded(
-                              child: Text(
-                                'Chatbot',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ),
-                            IconButton(
-                              onPressed: () => setState(() => _showChatbotOverlay = false),
-                              icon: const Icon(Icons.close),
-                              constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Expanded(
-                        child: ListView.builder(
-                          padding: const EdgeInsets.all(12),
-                          itemCount: _chatbotMessages.length,
-                          itemBuilder: (context, index) {
-                            final msg = _chatbotMessages[index];
-                            final isUser = msg['from'] == 'user';
-                            return Align(
-                              alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-                              child: Container(
-                                margin: const EdgeInsets.symmetric(vertical: 4),
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                constraints: const BoxConstraints(maxWidth: 260),
-                                decoration: BoxDecoration(
-                                  color: isUser ? _chatbotIconColor : const Color(0xFFF1F1F1),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  msg['text'] ?? '',
-                                  style: TextStyle(
-                                    color: isUser ? Colors.white : Colors.black87,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: const BoxDecoration(
-                          border: Border(top: BorderSide(color: Colors.grey)),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _chatbotInputController,
-                                onSubmitted: (_) => _sendChatbotMessage(),
-                                decoration: InputDecoration(
-                                  hintText: 'Type a message...',
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 10,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            IconButton(
-                              onPressed: _sendChatbotMessage,
-                              icon: Icon(
-                                Icons.send,
-                                color: _chatbotIconColor,
-                              ),
-                              constraints: const BoxConstraints(minWidth: 42, minHeight: 42),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _sendChatbotMessage() {
-    final text = _chatbotInputController.text.trim();
-    if (text.isEmpty) return;
-
-    setState(() {
-      _chatbotMessages.add({'from': 'user', 'text': text});
-      _chatbotInputController.clear();
-      
-      // Simulate bot response
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (mounted) {
-          setState(() {
-            _chatbotMessages.add({
-              'from': 'bot',
-              'text': 'Thank you for your message! Our team will get back to you soon.',
-            });
-          });
-        }
-      });
-    });
   }
 
   // Method to fetch user profile data
