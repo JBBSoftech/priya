@@ -526,7 +526,7 @@ class AdminManager {
   static Future<String?> _autoDetectAdminId() async {
     try {
       final response = await http.get(
-        Uri.parse('http://172.20.10.10:5000/api/admin/app-info'),
+        Uri.parse('http://192.168.0.7:5000/api/admin/app-info'),
         headers: {'Content-Type': 'application/json'},
       );
       
@@ -701,7 +701,7 @@ class _SignInPageState extends State<SignInPage> {
     try {
       final adminId = await AdminManager.getCurrentAdminId();
       final response = await http.post(
-        Uri.parse('http://172.20.10.10:5000/api/login'),
+        Uri.parse('http://192.168.0.7:5000/api/login'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'email': _emailController.text.trim(),
@@ -1107,11 +1107,6 @@ class _HomePageState extends State<HomePage> {
   Map<String, dynamic> _dynamicStoreInfo = {};
   Map<String, dynamic> _dynamicDesignSettings = {};
   Color _pageBackgroundColor = Colors.white;
-  
-  // Delivery and Chatbot state variables
-  bool _showDeliveryOverlay = false;
-  bool _showChatbotOverlay = false;
-  bool _showFixedChatbot = false;
 
   @override
   void initState() {
@@ -1272,27 +1267,17 @@ class _HomePageState extends State<HomePage> {
   }
 
   @override
-  Widget build(BuildContext context) => Stack(
-    children: [
-      Scaffold(
-        body: IndexedStack(
-          index: _currentPageIndex,
-          children: [
-            _buildHomePage(),
-            _buildCartPage(),
-            _buildWishlistPage(),
-            _buildProfilePage(),
-          ],
-        ),
-        bottomNavigationBar: _buildBottomNavigationBar(),
-      ),
-      
-      // Delivery overlay
-      _buildDeliveryOverlay(),
-      
-      // Chatbot widget (fixed position)
-      _buildChatbotWidget(),
-    ],
+  Widget build(BuildContext context) => Scaffold(
+    body: IndexedStack(
+      index: _currentPageIndex,
+      children: [
+        _buildHomePage(),
+        _buildCartPage(),
+        _buildWishlistPage(),
+        _buildProfilePage(),
+      ],
+    ),
+    bottomNavigationBar: _buildBottomNavigationBar(),
   );
 
   Widget _buildHomePage() {
